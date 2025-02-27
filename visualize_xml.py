@@ -997,7 +997,7 @@ def main(xml_file=None):
     window = MainWindow(xml_file)
 
     # 设置窗口大小
-    window.resize(1600, 800)  # 调整窗口大小为 1600x800
+    window.resize(1000, 800)  # 调整窗口大小为 1000x800
 
     # 设置窗口居中
     screen_geometry = QDesktopWidget().screenGeometry()  # 获取屏幕的几何信息
