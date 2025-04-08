@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QGroupBox
 )
-from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeCylinder
+from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeSphere
 from OCC.Core.gp import gp_Pnt, gp_Dir, gp_Ax2
 import pandas as pd
 from PyQt5.QtGui import QFont
@@ -47,7 +47,7 @@ from OCC.Core.BRepTools import breptools_OuterWire
 from OCC.Core.ShapeAnalysis import ShapeAnalysis_Edge
 from OCC.Core.BRep import BRep_Tool, BRep_Builder
 from OCC.Core.AIS import AIS_Shape
-from OCC.Core.Quantity import Quantity_Color, Quantity_NOC_BLUE, Quantity_NOC_YELLOW
+from OCC.Core.Quantity import Quantity_Color, Quantity_NOC_BLUE, Quantity_NOC_YELLOW, Quantity_NOC_RED, Quantity_NOC_GREEN
 
 
 class MainWindow(QWidget):
@@ -69,6 +69,10 @@ class MainWindow(QWidget):
         # 高亮和颜色管理
         self.ais_shapes = {}  # 存储所有AIS对象，用于颜色管理
         self.highlighted_shapes = []  # 当前高亮的形状IDs
+
+        # 节点相关数据结构
+        self.unique_nodes = {}  # 存储唯一节点信息，使用ref作为键，(x, y, z)作为值
+        self.node_shapes = []  # 存储节点的形状对象
 
         # 设置字体
         font = QFont()
@@ -151,6 +155,10 @@ class MainWindow(QWidget):
         self.segments = []
         self.ais_shapes = {}  # 清空AIS形状字典
         
+        # 存储唯一节点信息
+        self.unique_nodes = {}  # 使用ref作为键，(x, y, z)作为值
+        self.node_shapes = []  # 存储节点的形状对象
+        
         # 显示进度对话框
         progress = QProgressDialog("正在解析Excel数据...", "取消", 0, len(df), self)
         progress.setWindowModality(Qt.WindowModal)
@@ -161,6 +169,11 @@ class MainWindow(QWidget):
         main_root = QTreeWidgetItem(self.tree)
         main_root.setText(0, "NETWORK AIRPLANE")
         main_root.setData(0, Qt.UserRole, [])  # 将用于存储所有子节点的索引
+
+        # 添加节点根节点
+        nodes_root = QTreeWidgetItem(main_root)
+        nodes_root.setText(0, "Network Nodes")
+        nodes_root.setData(0, Qt.UserRole, [])  # 初始化节点索引列表
 
         section_groups = {}
         section_indices = {}  # 记录每个section包含的线段索引
@@ -188,7 +201,14 @@ class MainWindow(QWidget):
             safety = row['Safety']
             route = row['Route']
             action_number = row['Action Number']
-            section = row['SECTION']
+            section = row['Section']
+
+            # 添加唯一节点信息
+            if ref_origine not in self.unique_nodes:
+                self.unique_nodes[ref_origine] = (x_origine, y_origine, z_origine)
+            
+            if ref_extremite not in self.unique_nodes:
+                self.unique_nodes[ref_extremite] = (x_extremite, y_extremite, z_extremite)
 
             # 创建或获取section组
             if section not in section_groups:
@@ -240,7 +260,7 @@ class MainWindow(QWidget):
             action_number_subitem = QTreeWidgetItem(other_info_item)
             action_number_subitem.setText(0, f"Action Number= {action_number}")
             section_subitem = QTreeWidgetItem(other_info_item)
-            section_subitem.setText(0, f"SECTION= {section}")
+            section_subitem.setText(0, f"Section= {section}")
 
             start_point = (x_origine, y_origine, z_origine)
             end_point = (x_extremite, y_extremite, z_extremite)
@@ -252,25 +272,70 @@ class MainWindow(QWidget):
             
             # 将索引添加到对应的section索引列表中
             section_indices[section].append(segment_index)
+    
+        # 现在添加节点到树中
+        node_indices = []
+        for i, (node_id, node_pos) in enumerate(self.unique_nodes.items()):
+            node_item = QTreeWidgetItem(nodes_root)
+            node_item.setText(0, f"Node: {node_id}")
             
+            # 使用特殊格式存储节点ID，区分节点和线段
+            node_item.setData(0, Qt.UserRole, f"node_{i}")
+            node_indices.append(f"node_{i}")
+            
+            # 添加节点坐标信息
+            x_item = QTreeWidgetItem(node_item)
+            x_item.setText(0, f"X= {node_pos[0]}")
+            y_item = QTreeWidgetItem(node_item)
+            y_item.setText(0, f"Y= {node_pos[1]}")
+            z_item = QTreeWidgetItem(node_item)
+            z_item.setText(0, f"Z= {node_pos[2]}")
+        
+        # 设置节点根节点的索引列表
+        nodes_root.setData(0, Qt.UserRole, node_indices)
+        
         # 设置每个section组的索引列表
         for section, section_item in section_groups.items():
             section_item.setData(0, Qt.UserRole, section_indices[section])
-            
-        # 将所有索引添加到根节点
+        
+        # 将所有索引添加到根节点 (包括线段和节点)
         all_indices = []
         for indices in section_indices.values():
             all_indices.extend(indices)
+        all_indices.extend(node_indices)
         main_root.setData(0, Qt.UserRole, all_indices)
             
         # 关闭进度对话框
         progress.setValue(len(df))
         
         # 显示成功消息
-        self.show_success_message("Excel数据解析完成!")
+        self.show_success_message(f"Excel数据解析完成! 提取了 {len(self.unique_nodes)} 个唯一节点。")
         
         # 展开第一层节点
         self.tree.expandItem(main_root)
+
+    def create_node_shapes(self):
+        """创建代表节点的球体形状"""
+        self.node_shapes = []  # 重置节点形状列表
+        
+        # 设置球体的半径
+        radius = 40.0  # 球体的半径，可以根据需要调整
+        
+        for i, (node_id, node_pos) in enumerate(self.unique_nodes.items()):
+            # 创建球体
+            center = gp_Pnt(*node_pos)
+            sphere = BRepPrimAPI_MakeSphere(center, radius).Shape()
+            self.node_shapes.append(sphere)
+            
+            # 创建AIS对象
+            ais_shape = AIS_Shape(sphere)
+            
+            # 设置节点颜色为红色
+            color = Quantity_Color(Quantity_NOC_RED)
+            self.viewer._display.Context.SetColor(ais_shape, color, False)
+            
+            # 存储AIS对象，使用 'node_' 前缀区分节点
+            self.ais_shapes[f'node_{i}'] = ais_shape
 
     def draw_segments(self):
         """Draw all segments in the 3D viewer with improved handling of AIS shapes."""
@@ -279,19 +344,41 @@ class MainWindow(QWidget):
         self.ais_shapes = {}  # 清空AIS形状字典
         self.highlighted_shapes = []  # 清空高亮列表
         
+        # 首先创建节点形状
+        self.create_node_shapes()
+        
         # 只在首次绘制时显示进度对话框
         progress = None
-        if self.first_draw and len(self.segments) > 0:
-            progress = QProgressDialog("正在绘制线段...", "取消", 0, len(self.segments), self)
+        total_shapes = len(self.segments) + len(self.node_shapes)
+        if self.first_draw and total_shapes > 0:
+            progress = QProgressDialog("正在绘制线段和节点...", "取消", 0, total_shapes, self)
             progress.setWindowModality(Qt.WindowModal)
             progress.setMinimumDuration(500)  # 设置最小显示时间为500ms
             progress.show()
             QCoreApplication.processEvents()
         
-        for i, (start, end) in enumerate(self.segments):
+        # 绘制节点
+        for i, sphere in enumerate(self.node_shapes):
             # 更新进度条
             if progress:
                 progress.setValue(i)
+                QCoreApplication.processEvents()
+                
+                # 如果用户取消了操作
+                if progress.wasCanceled():
+                    break
+            
+            # 获取AIS对象
+            ais_shape = self.ais_shapes[f'node_{i}']
+            
+            # 显示形状
+            self.viewer._display.Context.Display(ais_shape, False)
+        
+        # 绘制线段
+        for i, (start, end) in enumerate(self.segments):
+            # 更新进度条
+            if progress:
+                progress.setValue(len(self.node_shapes) + i)
                 QCoreApplication.processEvents()
                 
                 # 如果用户取消了操作
@@ -329,7 +416,7 @@ class MainWindow(QWidget):
 
         # 关闭进度对话框并适配视图
         if progress:
-            progress.setValue(len(self.segments))
+            progress.setValue(total_shapes)
             
         self.viewer._display.FitAll()
         self.viewer._display.Repaint()  # 确保重绘视图
@@ -402,11 +489,21 @@ class MainWindow(QWidget):
             for shape_id in batch:
                 if shape_id in self.ais_shapes:
                     if highlight:
-                        # 设置为黄色
-                        color = Quantity_Color(Quantity_NOC_YELLOW)
+                        # 检查是否是节点
+                        if isinstance(shape_id, str) and shape_id.startswith('node_'):
+                            # 设置为绿色
+                            color = Quantity_Color(Quantity_NOC_GREEN)
+                        else:
+                            # 设置为黄色
+                            color = Quantity_Color(Quantity_NOC_YELLOW)
                     else:
-                        # 还原为蓝色
-                        color = Quantity_Color(Quantity_NOC_BLUE)
+                        # 检查是否是节点
+                        if isinstance(shape_id, str) and shape_id.startswith('node_'):
+                            # 还原为红色
+                            color = Quantity_Color(Quantity_NOC_RED)
+                        else:
+                            # 还原为蓝色
+                            color = Quantity_Color(Quantity_NOC_BLUE)
                     
                     self.viewer._display.Context.SetColor(self.ais_shapes[shape_id], color, False)
             
@@ -439,13 +536,18 @@ class MainWindow(QWidget):
         # 设置新的选中项
         self.selected_item = item
         
+        # 处理节点高亮 (节点ID格式: 'node_X')
+        if isinstance(shape_data, str) and shape_data.startswith('node_') and shape_data in self.ais_shapes:
+            # 高亮单个节点
+            self.highlight_shapes([shape_data], True)
+            self.highlighted_shapes = [shape_data]
         # 处理STEP形状
-        if isinstance(shape_data, str) and shape_data in self.ais_shapes:
+        elif isinstance(shape_data, str) and shape_data in self.ais_shapes:
             # 高亮单个形状
-            self.highlight_shapes(shape_data, True)
+            self.highlight_shapes([shape_data], True)
             self.highlighted_shapes = [shape_data]
         elif isinstance(shape_data, list):
-            # 对于字符串列表(STEP形状ID)或整数列表(线段索引)
+            # 对于字符串列表(STEP形状ID、节点ID)或整数列表(线段索引)
             valid_ids = []
             for id in shape_data:
                 if id in self.ais_shapes:
@@ -455,7 +557,7 @@ class MainWindow(QWidget):
                 self.highlighted_shapes = valid_ids
         elif isinstance(shape_data, int) and shape_data in self.ais_shapes:
             # 高亮单个线段
-            self.highlight_shapes(shape_data, True)
+            self.highlight_shapes([shape_data], True)
             self.highlighted_shapes = [shape_data]
 
     def closeEvent(self, event):
@@ -563,9 +665,9 @@ class MainWindow(QWidget):
                 # 导出组合体
                 step_writer.Transfer(compound, STEPControl_AsIs)
             else:
-                # 导出创建的圆柱体
-                progress.setLabelText("正在导出线段...")
-                # 创建一个组合体，将所有圆柱体添加进去
+                # 导出创建的圆柱体和球体
+                progress.setLabelText("正在导出线段和节点...")
+                # 创建一个组合体，将所有圆柱体和球体添加进去
                 from OCC.Core.TopoDS import TopoDS_Compound
                 from OCC.Core.BRep import BRep_Builder
                 
@@ -573,12 +675,30 @@ class MainWindow(QWidget):
                 builder = BRep_Builder()
                 builder.MakeCompound(compound)
                 
-                total_shapes = len(self.segment_shapes)
-                for i, shape in enumerate(self.segment_shapes):
+                # 添加所有线段形状
+                total_shapes = len(self.segment_shapes) + len(self.node_shapes)
+                shape_counter = 0
+                
+                for shape in self.segment_shapes:
                     # 添加到组合体
                     builder.Add(compound, shape)
                     # 更新进度，从30%到80%
-                    progress_value = 30 + int(50 * (i + 1) / total_shapes)
+                    shape_counter += 1
+                    progress_value = 30 + int(50 * shape_counter / total_shapes)
+                    progress.setValue(progress_value)
+                    QCoreApplication.processEvents()
+                    
+                    # 如果用户取消了操作
+                    if progress.wasCanceled():
+                        return
+                
+                # 添加所有节点形状
+                for shape in self.node_shapes:
+                    # 添加到组合体
+                    builder.Add(compound, shape)
+                    # 更新进度，从30%到80%
+                    shape_counter += 1
+                    progress_value = 30 + int(50 * shape_counter / total_shapes)
                     progress.setValue(progress_value)
                     QCoreApplication.processEvents()
                     
@@ -661,9 +781,9 @@ class MainWindow(QWidget):
                 # 导出组合体
                 iges_writer.AddShape(compound)
             else:
-                # 导出创建的圆柱体
-                progress.setLabelText("正在导出线段...")
-                # 创建一个组合体，将所有圆柱体添加进去
+                # 导出创建的圆柱体和球体
+                progress.setLabelText("正在导出线段和节点...")
+                # 创建一个组合体，将所有圆柱体和球体添加进去
                 from OCC.Core.TopoDS import TopoDS_Compound
                 from OCC.Core.BRep import BRep_Builder
                 
@@ -671,12 +791,30 @@ class MainWindow(QWidget):
                 builder = BRep_Builder()
                 builder.MakeCompound(compound)
                 
-                total_shapes = len(self.segment_shapes)
-                for i, shape in enumerate(self.segment_shapes):
+                # 添加所有线段形状和节点形状
+                total_shapes = len(self.segment_shapes) + len(self.node_shapes)
+                shape_counter = 0
+                
+                for shape in self.segment_shapes:
                     # 添加到组合体
                     builder.Add(compound, shape)
                     # 更新进度，从30%到80%
-                    progress_value = 30 + int(50 * (i + 1) / total_shapes)
+                    shape_counter += 1
+                    progress_value = 30 + int(50 * shape_counter / total_shapes)
+                    progress.setValue(progress_value)
+                    QCoreApplication.processEvents()
+                    
+                    # 如果用户取消了操作
+                    if progress.wasCanceled():
+                        return
+                
+                # 添加所有节点形状
+                for shape in self.node_shapes:
+                    # 添加到组合体
+                    builder.Add(compound, shape)
+                    # 更新进度，从30%到80%
+                    shape_counter += 1
+                    progress_value = 30 + int(50 * shape_counter / total_shapes)
                     progress.setValue(progress_value)
                     QCoreApplication.processEvents()
                     
@@ -742,6 +880,8 @@ class MainWindow(QWidget):
             self.step_shapes = {}
             self.ais_shapes = {}
             self.highlighted_shapes = []
+            self.unique_nodes = {}  # 清空节点数据
+            self.node_shapes = []   # 清空节点形状
             self.viewer._display.EraseAll()
             
             progress.setValue(20)
@@ -968,7 +1108,7 @@ def main(xlsx_file=None):
         window = MainWindow()
 
     # 设置窗口大小
-    window.resize(1400, 800)  # 调整窗口大小为 1400x800
+    window.resize(1000, 800)  # 调整窗口大小为 1000x800
 
     # 设置窗口居中
     screen_geometry = QDesktopWidget().screenGeometry()  # 获取屏幕的几何信息
