@@ -56,28 +56,53 @@ from OCC.Core.ShapeAnalysis import ShapeAnalysis_Edge
 from OCC.Core.AIS import AIS_Shape, AIS_InteractiveContext # Import AIS_InteractiveContext
 from OCC.Core.Quantity import Quantity_Color, Quantity_NOC_BLUE, Quantity_NOC_YELLOW, Quantity_NOC_RED, Quantity_NOC_GREEN
 
-# 配置日志
 def setup_logging():
-    """设置日志记录"""
+    """设置日志记录（修复版本）"""
     log_dir = "logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        if not os.access(log_dir, os.W_OK):
+            raise PermissionError(f"无写入权限: {log_dir}")
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(log_dir, f"app_{timestamp}.log")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(log_dir, f"app_{timestamp}.log")
 
-    # 配置根日志
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file, encoding='utf-8'), # Ensure UTF-8 encoding
-            logging.StreamHandler()
-        ]
-    )
+        # 统一日志格式
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
 
-    # 返回日志文件路径以便显示
-    return log_file
+        # 文件处理器
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setFormatter(formatter)
+        file_handler.setLevel(logging.DEBUG)
+
+        # 控制台处理器
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(logging.INFO)
+
+        # 配置根日志器
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+
+        # 创建应用专属日志器（必须关闭传播防止重复记录）
+        app_logger = logging.getLogger("visualize_xlsx")
+        app_logger.propagate = False  # 关闭传播，避免被根日志器重复处理
+        app_logger.setLevel(logging.DEBUG)
+        # 直接添加处理器到应用日志器
+        app_logger.addHandler(file_handler)
+        app_logger.addHandler(console_handler)
+
+        return log_file
+
+    except Exception as e:
+        print(f"致命错误: 无法初始化日志系统 - {str(e)}")
+        traceback.print_exc()
+        sys.exit(1)
 
 # 全局日志器
 logger = logging.getLogger("visualize_xlsx")
@@ -85,7 +110,7 @@ logger = logging.getLogger("visualize_xlsx")
 class MainWindow(QWidget):
     def __init__(self, df=None):
         super().__init__()
-        self.setWindowTitle("航电布线可视化系统")
+        self.setWindowTitle("基于公共数据源的航电系统布线架构与集成设计技术研究系统")
 
         logger.info("初始化应用程序...")
 
@@ -177,7 +202,7 @@ class MainWindow(QWidget):
 
         # 3D 视图
         self.viewer = qtViewer3d(self)
-        bg_color = Quantity_Color(0.2, 0.2, 0.2, Quantity_TOC_RGB)
+        bg_color = Quantity_Color(0.8, 0.8, 0.8, Quantity_TOC_RGB)
         # Access the underlying AIS_InteractiveContext
         self.context: AIS_InteractiveContext = self.viewer._display.Context
         # self.context.SetBackground(bg_color)
@@ -980,7 +1005,7 @@ class MainWindow(QWidget):
                             # self.context.AddOrRemoveSelected(ais_obj, True) # Select the object
                             # Use color for now as selection might interfere with callbacks
                             if isinstance(shape_id, str) and shape_id.startswith('node_'):
-                                color = Quantity_Color(Quantity_NOC_GREEN)
+                                                                               color = Quantity_Color(Quantity_NOC_GREEN)
                             else: # Segments or imported shapes
                                 color = Quantity_Color(Quantity_NOC_YELLOW)
                             self.context.SetColor(ais_obj, color, False)
@@ -1844,7 +1869,7 @@ def main(xlsx_file=None):
 
 if __name__ == "__main__":
     # Use argparse to parse command line arguments
-    parser = argparse.ArgumentParser(description="航电布线可视化系统 (Avionics Wiring Visualization System)")
+    parser = argparse.ArgumentParser(description="基于公共数据源的航电系统布线架构与集成设计技术研究系统")
     parser.add_argument("xlsx_file", type=str, nargs='?', default=None,
                         help="Path to the Excel file containing wiring data.")
     parser.add_argument("--debug", action="store_true",
