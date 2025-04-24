@@ -15,6 +15,9 @@ from OCC.Core.IGESControl import IGESControl_Reader, IGESControl_Writer
 from OCC.Core.Interface import Interface_Static_SetCVal
 from OCC.Core.IFSelect import IFSelect_RetDone
 from OCC.Core.BRep import BRep_Tool, BRep_Builder
+
+from OCC.Core.V3d import V3d_Zneg, V3d_Yneg, V3d_Xneg
+
 load_backend("qt-pyqt5")
 from OCC.Display.qtDisplay import qtViewer3d
 from PyQt5.QtWidgets import (
@@ -187,6 +190,25 @@ class MainWindow(QWidget):
 
         file_group.setLayout(file_layout)
         left_layout.addWidget(file_group)
+        
+         # 布局操作
+        layout_group = QGroupBox("布局操作")
+        layout_layout = QVBoxLayout()
+        # 居中按钮
+        self.layout_button = QPushButton("模型居中")
+        layout_layout.addWidget(self.layout_button)
+        # 正视图按钮
+        self.front_view_button = QPushButton("正视图")
+        layout_layout.addWidget(self.front_view_button)
+        # 俯视图按钮
+        self.top_view_button = QPushButton("俯视图")
+        layout_layout.addWidget(self.top_view_button)
+        # 右视图按钮
+        self.right_view_button = QPushButton("右视图")
+        layout_layout.addWidget(self.right_view_button)
+        
+        layout_group.setLayout(layout_layout)
+        left_layout.addWidget(layout_group)
 
         # 添加信息显示区域
         info_group = QGroupBox("对象信息")
@@ -208,6 +230,15 @@ class MainWindow(QWidget):
         # self.context.SetBackground(bg_color)
         self.viewer._display.View.SetBackgroundColor(bg_color) # Deprecated way
         horizontal_layout.addWidget(self.viewer, 2)
+        
+         # 布局操作绑定
+        self.layout_button.clicked.connect(self.viewer._display.FitAll)
+        # 正视图
+        self.front_view_button.clicked.connect(self.set_front_view)
+        # 俯视图
+        self.top_view_button.clicked.connect(self.set_top_view)
+        # 右视图
+        self.right_view_button.clicked.connect(self.set_right_view)
 
         # 添加主水平布局
         main_layout.addLayout(horizontal_layout)
@@ -245,6 +276,21 @@ class MainWindow(QWidget):
                 logger.error(f"初始化数据时出错: {str(e)}")
                 logger.error(traceback.format_exc())
                 QMessageBox.critical(self, "初始化错误", f"加载数据时出现错误: {str(e)}")
+                
+    # 定义设置正视图的函数
+    def set_front_view(self):
+        self.viewer._display.View.SetProj(V3d_Zneg)
+        self.viewer._display.FitAll()
+
+    # 定义设置俯视图的函数
+    def set_top_view(self):
+        self.viewer._display.View.SetProj(V3d_Yneg)
+        self.viewer._display.FitAll()
+
+    # 定义设置右视图的函数
+    def set_right_view(self):
+        self.viewer._display.View.SetProj(V3d_Xneg)
+        self.viewer._display.FitAll()
 
     def parse_df_and_populate_tree(self, df):
         """Parse dataframe and populate the tree widget with hierarchical structure."""
@@ -1336,7 +1382,7 @@ class MainWindow(QWidget):
     def export_to_iges(self, shapes, description):
         """导出提供的形状列表为 IGES 文件"""
         try:
-            file_path, _ = QFileDialog.getSaveFileName(self, f"保存 {description} 为 IGES 文件", "", "IGES 文件 (*.iges *.igs)")
+            file_path, _ = QFileDialog.getSaveFileName(self, f"保存 {description} 为 IGES 文件", "", "IGES 文件 (*.igs *.iges)")
             if not file_path:
                 logger.info("用户取消了IGES导出")
                 return

@@ -9,6 +9,8 @@ from OCC.Core.IGESControl import IGESControl_Reader, IGESControl_Writer
 from OCC.Core.Interface import Interface_Static_SetCVal
 from OCC.Core.IFSelect import IFSelect_RetDone
 
+from OCC.Core.V3d import V3d_Zneg, V3d_Yneg, V3d_Xneg
+
 load_backend("qt-pyqt5")
 from OCC.Display.qtDisplay import qtViewer3d
 
@@ -87,17 +89,44 @@ class MainWindow(QWidget):
         
         file_group.setLayout(file_layout)
         left_layout.addWidget(file_group)
+        
+        # 布局操作
+        layout_group = QGroupBox("布局操作")
+        layout_layout = QVBoxLayout()
+        # 居中按钮
+        self.layout_button = QPushButton("模型居中")
+        layout_layout.addWidget(self.layout_button)
+        # 正视图按钮
+        self.front_view_button = QPushButton("正视图")
+        layout_layout.addWidget(self.front_view_button)
+        # 俯视图按钮
+        self.top_view_button = QPushButton("俯视图")
+        layout_layout.addWidget(self.top_view_button)
+        # 右视图按钮
+        self.right_view_button = QPushButton("右视图")
+        layout_layout.addWidget(self.right_view_button)
+        
+        layout_group.setLayout(layout_layout)
+        left_layout.addWidget(layout_group)
 
         main_layout.addLayout(left_layout, 1)
 
         # 3D 视图
         self.viewer = qtViewer3d(self)
-        bg_color = Quantity_Color(0.2, 0.2, 0.2, Quantity_TOC_RGB)
+        bg_color = Quantity_Color(0.8, 0.8, 0.8, Quantity_TOC_RGB)
         self.viewer._display.View.SetBackgroundColor(bg_color)
         main_layout.addWidget(self.viewer, 2)
 
         self.setLayout(main_layout)
-
+        
+        # 布局操作绑定
+        self.layout_button.clicked.connect(self.viewer._display.FitAll)
+        # 正视图
+        self.front_view_button.clicked.connect(self.set_front_view)
+        # 俯视图
+        self.top_view_button.clicked.connect(self.set_top_view)
+        # 右视图
+        self.right_view_button.clicked.connect(self.set_right_view)
         # 存储线段形状和原始颜色
         self.segment_shapes = []
         self.segments = []
@@ -115,6 +144,21 @@ class MainWindow(QWidget):
             self.parse_xml_and_populate_tree(xml_file)
             # 在布局完成后绘制模型
             QTimer.singleShot(100, self.draw_segments)  # 延迟100毫秒确保UI完全初始化
+            
+    # 定义设置正视图的函数
+    def set_front_view(self):
+        self.viewer._display.View.SetProj(V3d_Zneg)
+        self.viewer._display.FitAll()
+
+    # 定义设置俯视图的函数
+    def set_top_view(self):
+        self.viewer._display.View.SetProj(V3d_Yneg)
+        self.viewer._display.FitAll()
+
+    # 定义设置右视图的函数
+    def set_right_view(self):
+        self.viewer._display.View.SetProj(V3d_Xneg)
+        self.viewer._display.FitAll()
 
     def parse_xml_and_populate_tree(self, file_path):
         """解析XML并填充树状结构"""
@@ -655,7 +699,7 @@ class MainWindow(QWidget):
     
     def export_to_iges(self):
         """导出 3D 模型为 IGES 文件"""
-        file_path, _ = QFileDialog.getSaveFileName(self, "保存为 IGES 文件", "", "IGES 文件 (*.iges *.igs)")
+        file_path, _ = QFileDialog.getSaveFileName(self, "保存为 IGES 文件", "", "IGES 文件 (*.igs *.iges)")
         if not file_path:
             return
             
