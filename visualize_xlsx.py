@@ -113,7 +113,7 @@ logger = logging.getLogger("visualize_xlsx")
 class MainWindow(QWidget):
     def __init__(self, df=None):
         super().__init__()
-        self.setWindowTitle("基于公共数据源的航电系统布线架构与集成设计技术研究系统")
+        self.setWindowTitle("基于公共数据源的航电系统布线架构与集成系统")
 
         logger.info("初始化应用程序...")
 
@@ -1915,7 +1915,7 @@ def main(xlsx_file=None):
 
 if __name__ == "__main__":
     # Use argparse to parse command line arguments
-    parser = argparse.ArgumentParser(description="基于公共数据源的航电系统布线架构与集成设计技术研究系统")
+    parser = argparse.ArgumentParser(description="基于公共数据源的航电系统布线架构与集成系统")
     parser.add_argument("xlsx_file", type=str, nargs='?', default=None,
                         help="Path to the Excel file containing wiring data.")
     parser.add_argument("--debug", action="store_true",
