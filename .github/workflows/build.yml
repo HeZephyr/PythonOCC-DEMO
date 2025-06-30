@@ -1,0 +1,52 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-activate-base: false
+        python-version: 3.9
+        environment-file: environment.yml  # 可选
+
+    - name: Create Conda environment and install pip dependencies
+      run: |
+        conda create -n build_env python=3.9 -y
+        conda activate build_env
+        pip install pythonocc-core==7.5.1
+        pip install PyQt5==5.15.11
+        pip install cx_Freeze==7.2.0
+        pip install setuptools==65.6.3
+        pip install pandas==2.0.3
+        pip install openpyxl==3.1.5
+        pip install nuitka==2.6.7
+
+    - name: Freeze for verification
+      run: |
+        conda activate build_env
+        pip freeze
+
+    - name: Build executable with Nuitka
+      run: |
+        conda activate build_env
+        nuitka --onefile --windows-disable-console visualize_xlsx.py
+
+    - name: Upload executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: visualize_xlsx
+        path: visualize_xlsx.exe
