@@ -261,12 +261,14 @@ class MainWindow(QWidget):
         self.viewer._display.FitAll()
 
     def parse_xml_and_populate_tree(self, file_path):
+        """解析XML文件并构建树结构，支持多种XML格式"""
         try:
             self.xml_file_path = file_path
             logger.info(f"正在解析XML文件: {file_path}")
             self.status_bar.showMessage(f"正在解析XML文件: {file_path}")
             QApplication.processEvents()
             
+            # 解析XML文件
             try:
                 tree = ET.parse(file_path)
                 self.root = tree.getroot()
@@ -274,7 +276,8 @@ class MainWindow(QWidget):
                 logger.error(f"XML解析错误: {str(e)}")
                 QMessageBox.critical(self, "解析错误", f"解析XML文件时出错: {str(e)}")
                 return
-                
+            
+            # 清空之前的数据
             self.tree.clear()
             self.segments.clear()
             self.unique_nodes.clear()
@@ -289,135 +292,24 @@ class MainWindow(QWidget):
             self.status_bar.showMessage("正在构建树形结构...")
             QApplication.processEvents()
             
-            # 假设XML文件可能有两种结构
-            root_item = QTreeWidgetItem(self.tree, [os.path.basename(file_path)])
+            # 检测XML格式（根据根节点名称）
+            root_tag = self.root.tag
+            logger.info(f"检测到XML格式: {root_tag}")
+            
+            # 创建根节点
+            root_item = QTreeWidgetItem(self.tree, [f"{root_tag}: {os.path.basename(file_path)}"])
             root_item.setExpanded(True)
             
-            # 处理Net节点
-            for net in self.root.findall("./Net"):
-                net_name = net.get("name", "未命名网络")
-                net_item = QTreeWidgetItem(root_item, [f"Net: {net_name}"])
-                net_item.setData(0, Qt.UserRole, {"type": "net", "name": net_name})
-                
-                # 处理 Devices 节点
-                devices = net.find("Devices")
-                if devices is not None:
-                    devices_item = QTreeWidgetItem(net_item, ["设备"])
-                    devices_item.setData(0, Qt.UserRole, {"type": "devices"})
-                    
-                    for device in devices.findall("Device"):
-                        device_name = device.get("name", "未命名设备")
-                        x = float(device.get("X", 0))
-                        y = float(device.get("Y", 0))
-                        z = float(device.get("Z", 0))
-                        
-                        device_item = QTreeWidgetItem(devices_item, [f"设备: {device_name}"])
-                        device_item.setData(0, Qt.UserRole, {
-                            "type": "device",
-                            "name": device_name,
-                            "x": x,
-                            "y": y,
-                            "z": z
-                        })
-                        
-                        # 添加设备到唯一节点列表
-                        self.unique_nodes[device_name] = (x, y, z)
-                
-                # 处理 IsoelectricPoints 节点
-                iso_points = net.find("IsoelectricPoints")
-                if iso_points is not None:
-                    isoe_item = QTreeWidgetItem(net_item, ["等电位点"])
-                    isoe_item.setData(0, Qt.UserRole, {"type": "isoe"})
-                    
-                    for iso_point in iso_points.findall("IsoelePt"):
-                        point_name = iso_point.get("name", "未命名等电位点")
-                        x = float(iso_point.get("X", 0))
-                        y = float(iso_point.get("Y", 0))
-                        z = float(iso_point.get("Z", 0))
-                        
-                        point_item = QTreeWidgetItem(isoe_item, [f"等电位点: {point_name}"])
-                        point_item.setData(0, Qt.UserRole, {
-                            "type": "isopt",
-                            "name": point_name,
-                            "x": x,
-                            "y": y,
-                            "z": z
-                        })
-                        
-                        # 添加等电位点到唯一节点列表
-                        self.unique_nodes[point_name] = (x, y, z)
-                
-                # 查找并处理TotalNetwork节点
-                total_network = net.find("TotalNetwork")
-                if total_network is not None:
-                    total_network_item = QTreeWidgetItem(net_item, ["TotalNetwork"])
-                    total_network_item.setData(0, Qt.UserRole, {
-                        "type": "total_network",
-                        "name": "TotalNetwork"
-                    })
-                    
-                    # 存储所有TotalNetwork下的链接形状ID
-                    self.total_network_shapes = []
-                    
-                    # 处理TotalNetwork下的Network节点
-                    for idx, network in enumerate(total_network.findall("Network")):
-                        network_name = network.get("name", f"未命名网络{idx}")
-                        network_item = QTreeWidgetItem(total_network_item, [f"Network: {network_name}"])
-                        network_item.setData(0, Qt.UserRole, {
-                            "type": "network",
-                            "name": network_name,
-                            "index": idx
-                        })
-                        
-                        # 处理起点和终点
-                        start_point = network.find("StartPoint")
-                        end_point = network.find("EndPoint")
-                        
-                        if start_point is not None and end_point is not None:
-                            start_name = start_point.get("name", "未命名起点")
-                            start_x = float(start_point.get("x", 0))
-                            start_y = float(start_point.get("y", 0))
-                            start_z = float(start_point.get("z", 0))
-                            
-                            end_name = end_point.get("name", "未命名终点")
-                            end_x = float(end_point.get("x", 0))
-                            end_y = float(end_point.get("y", 0))
-                            end_z = float(end_point.get("z", 0))
-                            
-                            # 添加Start点和End点到节点列表
-                            self.unique_nodes[start_name] = (start_x, start_y, start_z)
-                            self.unique_nodes[end_name] = (end_x, end_y, end_z)
-                            
-                            # 添加连接信息
-                            link_info = {
-                                "type": "link",
-                                "start_node": start_name,
-                                "end_node": end_name,
-                                "start_pos": (start_x, start_y, start_z),
-                                "end_pos": (end_x, end_y, end_z),
-                                "network_name": network_name,
-                                "parent": "TotalNetwork"
-                            }
-                            
-                            self.segments.append((
-                                (start_x, start_y, start_z),
-                                (end_x, end_y, end_z),
-                                idx
-                            ))
-                            
-                            # 存储链接数据
-                            self.link_data[idx] = link_info
-                            
-                            # 记录节点相关的链接
-                            if start_name not in self.node_to_links:
-                                self.node_to_links[start_name] = []
-                            self.node_to_links[start_name].append(idx)
-                            
-                            if end_name not in self.node_to_links:
-                                self.node_to_links[end_name] = []
-                            self.node_to_links[end_name].append(idx)
-                        else:
-                            point_item = QTreeWidgetItem(network_item, ["错误: 缺少起点或终点"])
+            # 根据不同格式解析
+            if root_tag == "MultiDeviceNet":
+                self.parse_multi_device_net(root_item)
+            elif root_tag == "TwoDeviceNet":
+                self.parse_two_device_net(root_item)
+            else:
+                logger.warning(f"未知的XML格式: {root_tag}")
+                QMessageBox.warning(self, "格式警告", f"未知的XML格式: {root_tag}，将尝试通用解析")
+                # 回退到通用解析
+                self.parse_generic_format(root_item)
             
             # 创建节点的3D形状
             self.create_node_shapes()
@@ -429,6 +321,344 @@ class MainWindow(QWidget):
             logger.error(f"解析XML和构建树时发生错误: {str(e)}")
             logger.error(traceback.format_exc())
             QMessageBox.critical(self, "处理错误", f"处理XML文件时出错: {str(e)}")
+
+    def parse_multi_device_net(self, root_item):
+        """解析MultiDeviceNet格式的XML"""
+        logger.info("解析MultiDeviceNet格式")
+        
+        for net in self.root.findall("./Net"):
+            net_name = net.get("name", "未命名网络")
+            net_item = QTreeWidgetItem(root_item, [f"Net: {net_name}"])
+            net_item.setData(0, Qt.UserRole, {"type": "net", "name": net_name})
+            
+            # 处理设备信息
+            self.parse_devices(net, net_item)
+            
+            # 处理等电位点
+            self.parse_isoelectric_points(net, net_item)
+            
+            # 检查是否有TotalNetwork
+            total_network = net.find("TotalNetwork")
+            if total_network is not None:
+                logger.info(f"发现TotalNetwork in Net: {net_name}")
+                self.parse_total_network(total_network, net_item)
+            else:
+                logger.info(f"未发现TotalNetwork in Net: {net_name}，解析SubNet")
+                self.parse_subnets(net, net_item)
+
+    def parse_two_device_net(self, root_item):
+        """解析TwoDeviceNet格式的XML"""
+        logger.info("解析TwoDeviceNet格式")
+        
+        for net in self.root.findall("./Net"):
+            net_name = net.get("name", "未命名网络")
+            net_item = QTreeWidgetItem(root_item, [f"Net: {net_name}"])
+            net_item.setData(0, Qt.UserRole, {"type": "net", "name": net_name})
+            
+            # 检查是否有TotalNetwork
+            total_network = net.find("TotalNetwork")
+            if total_network is not None:
+                logger.info(f"发现TotalNetwork in Net: {net_name}")
+                self.parse_total_network(total_network, net_item)
+            else:
+                logger.info(f"未发现TotalNetwork in Net: {net_name}，解析SubNet")
+                self.parse_subnets(net, net_item)
+
+    def parse_generic_format(self, root_item):
+        """通用格式解析（回退方案）"""
+        logger.info("使用通用格式解析")
+        
+        for net in self.root.findall(".//Net"):
+            net_name = net.get("name", "未命名网络")
+            net_item = QTreeWidgetItem(root_item, [f"Net: {net_name}"])
+            net_item.setData(0, Qt.UserRole, {"type": "net", "name": net_name})
+            
+            # 尝试解析各种可能的结构
+            self.parse_devices(net, net_item)
+            self.parse_isoelectric_points(net, net_item)
+            
+            total_network = net.find("TotalNetwork")
+            if total_network is not None:
+                self.parse_total_network(total_network, net_item)
+            else:
+                self.parse_subnets(net, net_item)
+
+    def parse_devices(self, net, net_item):
+        """解析设备信息"""
+        devices = net.find("Devices")
+        if devices is not None:
+            devices_item = QTreeWidgetItem(net_item, ["设备"])
+            devices_item.setData(0, Qt.UserRole, {"type": "devices"})
+            
+            for device in devices.findall("Device"):
+                device_name = device.get("name", "未命名设备")
+                x = float(device.get("X", 0))
+                y = float(device.get("Y", 0))
+                z = float(device.get("Z", 0))
+                
+                device_item = QTreeWidgetItem(devices_item, [f"设备: {device_name}"])
+                device_item.setData(0, Qt.UserRole, {
+                    "type": "device",
+                    "name": device_name,
+                    "x": x,
+                    "y": y,
+                    "z": z
+                })
+                
+                # 添加设备到唯一节点列表
+                self.unique_nodes[device_name] = (x, y, z)
+                logger.debug(f"添加设备节点: {device_name} at ({x}, {y}, {z})")
+
+    def parse_isoelectric_points(self, net, net_item):
+        """解析等电位点信息"""
+        iso_points = net.find("IsoelectricPoints")
+        if iso_points is not None:
+            isoe_item = QTreeWidgetItem(net_item, ["等电位点"])
+            isoe_item.setData(0, Qt.UserRole, {"type": "isoe"})
+            
+            for iso_point in iso_points.findall("IsoelePt"):
+                point_name = iso_point.get("name", "未命名等电位点")
+                x = float(iso_point.get("X", 0))
+                y = float(iso_point.get("Y", 0))
+                z = float(iso_point.get("Z", 0))
+                
+                point_item = QTreeWidgetItem(isoe_item, [f"等电位点: {point_name}"])
+                point_item.setData(0, Qt.UserRole, {
+                    "type": "isopt",
+                    "name": point_name,
+                    "x": x,
+                    "y": y,
+                    "z": z
+                })
+                
+                # 添加等电位点到唯一节点列表
+                self.unique_nodes[point_name] = (x, y, z)
+                logger.debug(f"添加等电位点节点: {point_name} at ({x}, {y}, {z})")
+
+    def parse_total_network(self, total_network, net_item):
+        """解析TotalNetwork节点"""
+        total_network_item = QTreeWidgetItem(net_item, ["TotalNetwork"])
+        total_network_item.setData(0, Qt.UserRole, {
+            "type": "total_network",
+            "name": "TotalNetwork"
+        })
+        
+        # 存储所有TotalNetwork下的链接形状ID
+        self.total_network_shapes = []
+        segment_idx = len(self.segments)  # 当前段的起始索引
+        
+        # 处理TotalNetwork下的Network节点
+        for network in total_network.findall("Network"):
+            network_name = network.get("name", f"未命名网络{segment_idx}")
+            network_item = QTreeWidgetItem(total_network_item, [f"Network: {network_name}"])
+            network_item.setData(0, Qt.UserRole, {
+                "type": "network",
+                "name": network_name,
+                "index": segment_idx
+            })
+            
+            # 处理起点和终点
+            start_point = network.find("StartPoint")
+            end_point = network.find("EndPoint")
+            
+            if start_point is not None and end_point is not None:
+                start_name = start_point.get("name", "未命名起点")
+                start_x = float(start_point.get("x", 0))
+                start_y = float(start_point.get("y", 0))
+                start_z = float(start_point.get("z", 0))
+                
+                end_name = end_point.get("name", "未命名终点")
+                end_x = float(end_point.get("x", 0))
+                end_y = float(end_point.get("y", 0))
+                end_z = float(end_point.get("z", 0))
+                
+                # 添加Start点和End点到节点列表
+                self.unique_nodes[start_name] = (start_x, start_y, start_z)
+                self.unique_nodes[end_name] = (end_x, end_y, end_z)
+                
+                # 添加连接信息
+                link_info = {
+                    "type": "link",
+                    "start_node": start_name,
+                    "end_node": end_name,
+                    "start_pos": (start_x, start_y, start_z),
+                    "end_pos": (end_x, end_y, end_z),
+                    "network_name": network_name,
+                    "parent": "TotalNetwork"
+                }
+                
+                self.segments.append((
+                    (start_x, start_y, start_z),
+                    (end_x, end_y, end_z),
+                    segment_idx
+                ))
+                
+                # 存储链接数据
+                self.link_data[segment_idx] = link_info
+                
+                # 记录节点相关的链接
+                if start_name not in self.node_to_links:
+                    self.node_to_links[start_name] = []
+                self.node_to_links[start_name].append(segment_idx)
+                
+                if end_name not in self.node_to_links:
+                    self.node_to_links[end_name] = []
+                self.node_to_links[end_name].append(segment_idx)
+                
+                logger.debug(f"添加TotalNetwork链接: {network_name} ({start_name} -> {end_name})")
+                segment_idx += 1
+            else:
+                logger.warning(f"Network {network_name} 缺少起点或终点")
+                error_item = QTreeWidgetItem(network_item, ["错误: 缺少起点或终点"])
+
+    def parse_subnets(self, net, net_item):
+        """解析SubNet节点（无TotalNetwork情况）"""
+        logger.info("解析SubNet结构")
+        segment_idx = len(self.segments)  # 当前段的起始索引
+        
+        # 首先解析FromDeviceOrConnector和ToDeviceOrConnector（TwoDeviceNet格式）
+        self.parse_device_connectors(net, net_item)
+        
+        for subnet in net.findall("SubNet"):
+            subnet_name = subnet.get("name", "未命名子网")
+            subnet_item = QTreeWidgetItem(net_item, [f"SubNet: {subnet_name}"])
+            subnet_item.setData(0, Qt.UserRole, {"type": "subnet", "name": subnet_name})
+            
+            # 解析FromDeviceOrConnector和ToDeviceOrConnector（如果在SubNet级别）
+            self.parse_device_connectors(subnet, subnet_item)
+            
+            # 解析Segement
+            for segement in subnet.findall("Segement"):
+                segement_name = segement.get("name", "未命名段")
+                segement_item = QTreeWidgetItem(subnet_item, [f"Segement: {segement_name}"])
+                segement_item.setData(0, Qt.UserRole, {"type": "segement", "name": segement_name})
+                
+                # 解析NetStartPoint和NetEndPoint
+                net_start = segement.find("NetStartPoint")
+                net_end = segement.find("NetEndPoint")
+                
+                if net_start is not None and net_end is not None:
+                    start_device = net_start.get("name", "未知起始设备")
+                    end_device = net_end.get("name", "未知终止设备")
+                    
+                    info_item = QTreeWidgetItem(segement_item, [f"路径: {start_device} -> {end_device}"])
+                    info_item.setData(0, Qt.UserRole, {
+                        "type": "route_info",
+                        "start": start_device,
+                        "end": end_device
+                    })
+                
+                # 解析Network节点
+                for network in segement.findall("Network"):
+                    network_name = network.get("name", f"未命名网络{segment_idx}")
+                    network_item = QTreeWidgetItem(segement_item, [f"Network: {network_name}"])
+                    network_item.setData(0, Qt.UserRole, {
+                        "type": "network",
+                        "name": network_name,
+                        "index": segment_idx
+                    })
+                    
+                    # 处理起点和终点
+                    start_point = network.find("StartPoint")
+                    end_point = network.find("EndPoint")
+                    
+                    if start_point is not None and end_point is not None:
+                        start_name = start_point.get("name", "未命名起点")
+                        start_x = float(start_point.get("x", 0))
+                        start_y = float(start_point.get("y", 0))
+                        start_z = float(start_point.get("z", 0))
+                        
+                        end_name = end_point.get("name", "未命名终点")
+                        end_x = float(end_point.get("x", 0))
+                        end_y = float(end_point.get("y", 0))
+                        end_z = float(end_point.get("z", 0))
+                        
+                        # 添加Start点和End点到节点列表
+                        self.unique_nodes[start_name] = (start_x, start_y, start_z)
+                        self.unique_nodes[end_name] = (end_x, end_y, end_z)
+                        
+                        # 添加连接信息
+                        link_info = {
+                            "type": "link",
+                            "start_node": start_name,
+                            "end_node": end_name,
+                            "start_pos": (start_x, start_y, start_z),
+                            "end_pos": (end_x, end_y, end_z),
+                            "network_name": network_name,
+                            "parent": f"SubNet:{subnet_name}",
+                            "segement": segement_name
+                        }
+                        
+                        self.segments.append((
+                            (start_x, start_y, start_z),
+                            (end_x, end_y, end_z),
+                            segment_idx
+                        ))
+                        
+                        # 存储链接数据
+                        self.link_data[segment_idx] = link_info
+                        
+                        # 记录节点相关的链接
+                        if start_name not in self.node_to_links:
+                            self.node_to_links[start_name] = []
+                        self.node_to_links[start_name].append(segment_idx)
+                        
+                        if end_name not in self.node_to_links:
+                            self.node_to_links[end_name] = []
+                        self.node_to_links[end_name].append(segment_idx)
+                        
+                        logger.debug(f"添加SubNet链接: {network_name} ({start_name} -> {end_name})")
+                        segment_idx += 1
+                    else:
+                        logger.warning(f"Network {network_name} in SubNet 缺少起点或终点")
+                        error_item = QTreeWidgetItem(network_item, ["错误: 缺少起点或终点"])
+
+    def parse_device_connectors(self, parent_element, parent_item):
+        """解析FromDeviceOrConnector和ToDeviceOrConnector节点"""
+        from_device = parent_element.find("FromDeviceOrConnector")
+        to_device = parent_element.find("ToDeviceOrConnector")
+        
+        if from_device is not None or to_device is not None:
+            connectors_item = QTreeWidgetItem(parent_item, ["设备连接器"])
+            connectors_item.setData(0, Qt.UserRole, {"type": "connectors"})
+            
+            if from_device is not None:
+                device_name = from_device.get("name", "未命名起始设备")
+                x = float(from_device.get("x", 0))
+                y = float(from_device.get("y", 0))
+                z = float(from_device.get("z", 0))
+                
+                from_item = QTreeWidgetItem(connectors_item, [f"起始设备: {device_name}"])
+                from_item.setData(0, Qt.UserRole, {
+                    "type": "from_device",
+                    "name": device_name,
+                    "x": x,
+                    "y": y,
+                    "z": z
+                })
+                
+                # 添加到唯一节点列表
+                self.unique_nodes[device_name] = (x, y, z)
+                logger.debug(f"添加起始设备节点: {device_name} at ({x}, {y}, {z})")
+            
+            if to_device is not None:
+                device_name = to_device.get("name", "未命名终止设备")
+                x = float(to_device.get("x", 0))
+                y = float(to_device.get("y", 0))
+                z = float(to_device.get("z", 0))
+                
+                to_item = QTreeWidgetItem(connectors_item, [f"终止设备: {device_name}"])
+                to_item.setData(0, Qt.UserRole, {
+                    "type": "to_device",
+                    "name": device_name,
+                    "x": x,
+                    "y": y,
+                    "z": z
+                })
+                
+                # 添加到唯一节点列表
+                self.unique_nodes[device_name] = (x, y, z)
+                logger.debug(f"添加终止设备节点: {device_name} at ({x}, {y}, {z})")
 
     def create_node_shapes(self):
         """创建代表节点的球体形状"""

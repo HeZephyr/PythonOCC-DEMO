@@ -15,7 +15,7 @@
 #include <QMenuBar>
 #include <QApplication>
 #include <QFileInfo>
-#include <QRandomGenerator>
+#include <QTime> // Replace QRandomGenerator
 
 FileVisualizer::FileVisualizer(QWidget *parent)
     : QMainWindow(parent),
@@ -24,6 +24,9 @@ FileVisualizer::FileVisualizer(QWidget *parent)
       m_currentProgress(0),
       m_isProcessing(false)
 {
+    // Initialize random seed for qrand()
+    qsrand(QTime::currentTime().msec());
+    
     // 初始化配置管理器
     m_configManager = new ConfigManager(this);
     if (!m_configManager->initialize()) {
@@ -382,8 +385,8 @@ void FileVisualizer::updateProgress()
     if (m_isProcessing) {
         // 使用渐进式进度模拟
         if (m_currentProgress < 90) {
-            // 使用Qt 5.15中的QRandomGenerator代替deprecated的qrand
-            m_currentProgress += 1 + QRandomGenerator::global()->bounded(3); // 随机增加1-3%
+            // 使用qrand()替代QRandomGenerator
+            m_currentProgress += 1 + (qrand() % 3); // 随机增加1-3%
             if (m_currentProgress > 90) {
                 m_currentProgress = 90; // 最高到90%，剩下10%在完成时更新
             }

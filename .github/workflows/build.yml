@@ -21,7 +21,6 @@ jobs:
       with:
         auto-activate-base: false
         python-version: 3.9
-        environment-file: environment.yml  # 可选
 
     - name: Create Conda environment and install pip dependencies
       run: |

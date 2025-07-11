@@ -11,20 +11,20 @@ if sys.platform == "win32":
 
 executables = [
     Executable(
-        "visualize_xml.py",        # 要打包的Python脚本
+        "visualize_xlsx.py",        # 要打包的Python脚本
         base=base,
-        target_name="visualize_xml",  # 输出的可执行文件名
+        target_name="visualize_xlsx",  # 输出的可执行文件名
         # icon="icon.ico",            # 可选：应用图标(如果有)
     )
 ]
 
 # 设置构建选项
 build_options = {
-    "build_exe": "dist/visualize_xml",                   # 输出目录
+    "build_exe": "dist/visualize_xlsx",                   # 输出目录
 }
 
 setup(
-    name="VisualizeXML",
+    name="VisualizeXLSX",
     version="1.0",
     description="Excel Visualization Tool",
     options={"build_exe": build_options},

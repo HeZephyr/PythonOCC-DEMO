@@ -1780,22 +1780,28 @@ class MainWindow(QWidget):
             self.msg_box.setWindowTitle("成功")
             self.msg_box.setText(message)
             self.msg_box.setIcon(QMessageBox.Information)
-            # self.msg_box.setStandardButtons(QMessageBox.Ok) # No buttons needed for auto-close
-            self.msg_box.setStandardButtons(QMessageBox.NoButton) # Hide OK button
-            # Ensure it's modeless so the main window remains interactive
+            # 添加OK按钮以便用户可以手动关闭（如果自动关闭失败）
+            self.msg_box.setStandardButtons(QMessageBox.Ok)
+            # 设置为非模态，保持主窗口可交互
             self.msg_box.setWindowModality(Qt.NonModal)
             self.msg_box.show()
 
-            # Set timer to close it
+            # 设置计时器以自动关闭
             if hasattr(self, 'timer'):
-                # Disconnect previous connection just in case
+                # 确保计时器停止并断开之前的连接
+                if self.timer.isActive():
+                    self.timer.stop()
                 if hasattr(self, 'timer_connected') and self.timer_connected:
-                    try: self.timer.timeout.disconnect(self.close_message_box)
-                    except (TypeError, RuntimeError): pass
-                # Connect and start timer
+                    try: 
+                        self.timer.timeout.disconnect(self.close_message_box)
+                    except (TypeError, RuntimeError): 
+                        pass
+                
+                # 连接新的计时器信号
                 self.timer.timeout.connect(self.close_message_box)
                 self.timer_connected = True
-                self.timer.start(1500)  # 1500 ms = 1.5 seconds
+                self.timer.start(1500)  # 1500 ms = 1.5 秒后自动关闭
+                logger.debug("成功消息框将在1.5秒后自动关闭")
 
             logger.info(f"显示成功消息: {message}")
         except Exception as e:
@@ -1803,18 +1809,26 @@ class MainWindow(QWidget):
             logger.error(traceback.format_exc())
 
     def close_message_box(self):
-        """Slot to close the success message box."""
+        """关闭成功消息框的槽函数"""
         try:
-            if hasattr(self, 'msg_box') and self.msg_box and self.msg_box.isVisible():
-                self.msg_box.close()
-                logger.debug("自动关闭成功消息框")
-
-            # Disconnect timer signal
+            # 停止并断开计时器
+            if hasattr(self, 'timer') and self.timer.isActive():
+                self.timer.stop()
+                logger.debug("停止自动关闭计时器")
+            
             if hasattr(self, 'timer_connected') and self.timer_connected:
                 try:
                     self.timer.timeout.disconnect(self.close_message_box)
-                except (TypeError, RuntimeError): pass # Ignore errors if already disconnected
+                    logger.debug("断开计时器信号连接")
+                except (TypeError, RuntimeError): 
+                    pass # 忽略已断开连接的错误
                 self.timer_connected = False
+
+            # 关闭消息框
+            if hasattr(self, 'msg_box') and self.msg_box and self.msg_box.isVisible():
+                self.msg_box.close()
+                logger.debug("自动关闭成功消息框")
+                
         except Exception as e:
             logger.error(f"关闭消息框时出错: {e}")
             logger.error(traceback.format_exc())

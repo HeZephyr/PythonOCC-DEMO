@@ -51,7 +51,7 @@ bool ConfigManager::initialize(const QString &configPath)
         m_executablePaths[fileType] = exePath;
         
         // 读取文件扩展名列表
-        QStringList extensions = settings.value("extensions").toString().split(",", Qt::SkipEmptyParts);
+        QStringList extensions = settings.value("extensions").toString().split(",", QString::SkipEmptyParts);
         for (int i = 0; i < extensions.size(); ++i) {
             extensions[i] = extensions[i].trimmed().toLower();
             // 创建扩展名到类型的映射
